@@ -32,6 +32,15 @@ Key = {
 	END: 35
 };
 
+Hex = new Array(256);
+(function() {
+	for (var i = 0; i < 16; i++) Hex[i] = '0' + i.toString(16);
+	for (; i < 256; i++) Hex[i] = i.toString(16);
+})();
+
+/**
+ * @constructor
+ */
 function Location(x, y, w, h) {
 	this.x = x;
 	this.y = y;
@@ -194,7 +203,8 @@ Visualizer = function(container, dataDir, codebase, w, h, java) {
 	 * images used by the visualizer
 	 * @private
 	 */
-	this.imgMgr = new ImageManager((dataDir || '') + 'img/', this, this.completedImages);
+	this.imgMgr = new ImageManager((dataDir || '') + 'img/', this,
+			this.completedImages);
 	this.imgMgr.add('wood.jpg');
 	this.imgMgr.add('playback.png');
 	this.imgMgr.add('fog.png');
@@ -238,7 +248,9 @@ Visualizer.prototype.progress = function(log, func) {
 			if (typeof error == 'string') error = {message: error};
 			var msg = '';
 			for(var key in error) {
-				msg += '<p><u><b>Error ' + key + ':</b></u>\n' + error[key] + '</p>';
+				var escaped = new String(error[key]).replace('&', '&amp;');
+				escaped = escaped.replace('<', '&lt;').replace('>', '&gt;');
+				msg += '<p><u><b>Error ' + key + ':</b></u>\n' + escaped + '</p>';
 			}
 			vis.errorOut(msg);
 			var selectedPosX = 0;
@@ -316,7 +328,7 @@ Visualizer.prototype.loadReplayDataFromURI = function(file) {
 						vis.replay = vis.replay.responseText;
 						vis.loadParseReplay();
 					} else {
-						vis.errorOut('Status ' + p.status + ': ' + p.statusText);
+						vis.errorOut('Status ' + vis.replay.status + ': ' + vis.replay.statusText);
 					}
 				}
 			}
@@ -380,7 +392,9 @@ Visualizer.prototype.loadParseReplay = function() {
 	var vis = this;
 	this.progress('Parsing the replay...', function() {
 		if (!vis.replay) {
-			throw new Error('Replay is undefined.');
+			if (vis.loading !== LoadingState.CLEANUP) {
+				throw new Error('Replay is undefined.');
+			}
 		} else if (vis.replay instanceof Replay) { // has just been parsed
 			return;
 		} else if (typeof vis.replay == 'string') { // string only
@@ -408,7 +422,12 @@ Visualizer.prototype.loadCanvas = function(prompt) {
 				var token = appletManager.add(vis);
 				var e = document.createElement('applet');
 				vis.main.element = e;
-				e.setAttribute('codebase', vis.options['codebase']);
+				var codebase = vis.options['codebase'];
+				if (codebase.substr(codebase.length - 4) === '.jar') {
+					e.setAttribute('archive', codebase);
+				} else {
+					e.setAttribute('codebase', codebase);
+				}
 				e.setAttribute('code', 'com.aicontest.visualizer.CanvasApplet');
 				e.setAttribute('width', size.width);
 				e.setAttribute('height', size.height);
@@ -443,24 +462,6 @@ Visualizer.prototype.loadCanvas = function(prompt) {
 		vis.createCanvas(vis.map);
 		vis.createCanvas(vis.border);
 		vis.createCanvas(vis.scores);
-		if (!vis.btnMgr.groups['playback']) {
-			var bg = vis.btnMgr.addGroup('playback', vis.imgMgr.images[1], ButtonGroup.HORIZONTAL, ButtonGroup.MODE_NORMAL, 2);
-			bg.addButton(3, function() {vis.director.gotoTick(0)});
-			bg.addSpace(32);
-			bg.addButton(5, function() {vis.director.gotoTick(Math.ceil(vis.director.position) - 1)});
-			//drawImage(this.imgMgr.images[1], 0 * 64, 0, 64, 64, x + 2.5 * 64, y, 64, 64);
-			bg.addSpace(64);
-			bg.addButton(4, function() {vis.director.playStop()});
-			//drawImage(this.imgMgr.images[1], 1 * 64, 0, 64, 64, x + 4.5 * 64, y, 64, 64);
-			bg.addSpace(64);
-			bg.addButton(6, function() {vis.director.gotoTick(Math.floor(vis.director.position) + 1)});
-			bg.addSpace(32);
-			bg.addButton(2, function() {vis.director.gotoTick(vis.director.duration)});
-			bg = vis.btnMgr.addGroup('toolbar', vis.imgMgr.images[3], ButtonGroup.VERTICAL, ButtonGroup.MODE_NORMAL, 2);
-			bg.addButton(0, function() {vis.config.save();});
-			bg.addButton(1, function() {vis.setFullscreen(!vis.config['fullscreen']);});
-			//bg.addButton(2, function() {  });
-		}
 		vis.tryStart();
 	});
 };
@@ -493,25 +494,84 @@ Visualizer.prototype.tryStart = function() {
 	if (this.replay && this.replay instanceof Replay) {
 		if (this.main.ctx && !this.imgMgr.error && !this.imgMgr.pending) {
 			var vis = this;
+			// add static buttons
+			if (!vis.btnMgr.groups['playback']) {
+				var bg = vis.btnMgr.addImageGroup('playback',
+						vis.imgMgr.images[1], ImageButtonGroup.HORIZONTAL,
+						ButtonGroup.MODE_NORMAL, 2);
+				bg.addButton(3, function() {vis.director.gotoTick(0)});
+				bg.addSpace(32);
+				bg.addButton(5, function() {
+					var stop = (Math.ceil(vis.director.position * 2) - 1) / 2;
+					vis.director.slowmoTo(stop);
+				});
+				//drawImage(this.imgMgr.images[1], 0 * 64, 0, 64, 64, x + 2.5 * 64, y, 64, 64);
+				bg.addSpace(64);
+				bg.addButton(4, function() {vis.director.playStop()});
+				//drawImage(this.imgMgr.images[1], 1 * 64, 0, 64, 64, x + 4.5 * 64, y, 64, 64);
+				bg.addSpace(64);
+				bg.addButton(6, function() {
+					var stop = (Math.floor(vis.director.position * 2) + 1) / 2;
+					vis.director.slowmoTo(stop);
+				});
+				bg.addSpace(32);
+				bg.addButton(2, function() {
+					vis.director.gotoTick(vis.director.duration);
+				});
+				bg = vis.btnMgr.addImageGroup('toolbar', vis.imgMgr.images[3],
+						ImageButtonGroup.VERTICAL, ButtonGroup.MODE_NORMAL, 2);
+				bg.addButton(0, function() {vis.config.save()});
+				bg.addButton(1, function() {
+					vis.setFullscreen(!vis.config['fullscreen']);
+				});
+//				bg.addButton(2, function() {
+//					vis.setBorder(!vis.config['border']);
+//				});
+//				bg.addButton(3, function() {
+//					vis.setAntLabels(!vis.config['label']);
+//				});
+			}
 			// generate fog images
 			var colors = [null];
-			for (i = 0; i < this.replay.players.length; i++) {
-				colors.push(this.replay.players[i]['color']);
+			for (i = 0; i < this.replay.players; i++) {
+				colors.push(this.replay.meta['playercolors'][i]);
 			}
-			if (this.highestPlayerCount < this.replay.players.length) {
-				this.highestPlayerCount = this.replay.players.length;
+			if (this.highestPlayerCount < this.replay.players) {
+				this.highestPlayerCount = this.replay.players;
 				this.imgMgr.colorize(2, colors);
 			}
-			var bg = this.btnMgr.addGroup('fog', this.imgMgr.patterns[2], ButtonGroup.VERTICAL, ButtonGroup.MODE_RADIO, 2);
+			bg = this.btnMgr.addImageGroup('fog', this.imgMgr.patterns[2],
+				ImageButtonGroup.VERTICAL, ButtonGroup.MODE_RADIO, 2);
+			var buttonAdder = function(fog) {
+				return bg.addButton(i, function() {vis.showFog(fog);});
+			}
 			for (var i = 0; i < colors.length; i++) {
-				var buttonAdder = function(fog) {
-					return bg.addButton(i, function() {vis.showFog(fog);});
-				}
 				if (i == 0) {
 					buttonAdder(undefined).down = true;
 				} else {
 					buttonAdder(i - 1);
 				}
+			}
+			// add player buttons
+			bg = this.btnMgr.addTextGroup('players', TextButtonGroup.FLOW,
+					ButtonGroup.MODE_NORMAL, 2);
+			bg.addButton('Players:', '#888');
+			buttonAdder = function(i) {
+				var color = vis.replay.meta['playercolors'][i];
+				color = 'rgb('+ color[0] +','+ color[1] +','+ color[2] +')';
+				var func = null;
+				if (vis.replay.meta['user_url'] && vis.replay.meta['user_ids']
+						&& vis.replay.meta['user_ids'][i]) {
+					func = function() {
+						window.location.href =
+								vis.replay.meta['user_url'].replace('~',
+										vis.replay.meta['user_ids'][i]);
+					};
+				}
+				bg.addButton(vis.replay.meta['players'][i], color, func);
+			}
+			for (i = 0; i < this.replay.players; i++) {
+				buttonAdder(i);
 			}
 			// try to make the replays play 1 minute, but the turns take no more than a second
 			this.director.duration = this.replay.turns.length - 1;
@@ -582,8 +642,8 @@ Visualizer.prototype.calculateCanvasSize = function() {
 		result.width = document.documentElement.clientWidth;
 		result.height = document.documentElement.clientHeight;
 	}
-	result.width = (this.w && !this.config['fullscreen'] ? this.w : result.width);
-	result.height = (this.h && !this.config['fullscreen'] ? this.h : result.height - 4);
+	result.width = (this.w && (!this.config['fullscreen'] || this.options['java']) ? this.w : result.width);
+	result.height = (this.h && (!this.config['fullscreen'] || this.options['java']) ? this.h : result.height - 4);
 	return result;
 };
 Visualizer.prototype.createCanvas = function(obj) {
@@ -599,7 +659,9 @@ Visualizer.prototype.createCanvas = function(obj) {
 	}
 };
 Visualizer.prototype.setFullscreen = function(enable) {
-	if (!this.options['java']) {
+	if (this.options['java']) {
+		this.config['fullscreen'] = false;
+	} else {
 		var html = document.getElementsByTagName("html")[0];
 		this.config['fullscreen'] = enable;
 		if (enable) {
@@ -616,6 +678,12 @@ Visualizer.prototype.setFullscreen = function(enable) {
 	}
 	this.resize(true);
 };
+Visualizer.prototype.setBorder = function(enable) {
+	this.config['border'] = enable;
+};
+Visualizer.prototype.setAntLabels = function(enable) {
+	this.config['label'] = enable;
+};
 Visualizer.prototype.resize = function(forced) {
 	var olds = {
 		width: this.main.element.getAttribute('width'),
@@ -631,9 +699,35 @@ Visualizer.prototype.resize = function(forced) {
 				this.main.element['setSize'](news.width, news.height);
 			}
 		}
-		this.loc.vis = new Location(LEFT_PANEL_W, TOP_PANEL_H,
+		var canvas = this.main.canvas;
+		var ctx = this.main.ctx;
+		ctx.fillStyle = '#fff';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		// 1. player buttons
+		var y = this.btnMgr.groups['players'].cascade(news.width) + 4;
+		// 2. scores bar & time line
+		this.loc.graph = new Location(4, y + 66, news.width - 8, 64);
+		this.loc.scorebar = new Location(95, y +  4, news.width - 4 - 95, 22);
+		this.loc.countbar = new Location(95, y + 38, news.width - 4 - 95, 22);
+		ctx.lineWidth = 2;
+		shapeRoundedRect(ctx, 0, y, canvas.width, 30, 1, 5);
+		ctx.stroke();
+		shapeRoundedRect(ctx, 0, y + 34, canvas.width, 100, 1, 5);
+		ctx.moveTo(0, y + 63);
+		ctx.lineTo(canvas.width, y + 63);
+		ctx.stroke();
+		ctx.lineWidth = 1;
+		ctx.fillStyle = '#888';
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		ctx.font = 'bold 20px Arial';
+		ctx.fillText('scores', 4, y + 15);
+		ctx.fillText('# of ants', 4, y + 49);
+		y += 134;
+		// 3. visualizer placement
+		this.loc.vis = new Location(LEFT_PANEL_W, y,
 			news.width - LEFT_PANEL_W - RIGHT_PANEL_W,
-			news.height - TOP_PANEL_H - BOTTOM_PANEL_H);
+			news.height - y - BOTTOM_PANEL_H);
 		this.scale = Math.min(10, Math.max(1, Math.min(
 			(this.loc.vis.w - 2 * ZOOM_SCALE) / (this.replay.cols),
 			(this.loc.vis.h - 2 * ZOOM_SCALE) / (this.replay.rows)))) | 0;
@@ -644,10 +738,9 @@ Visualizer.prototype.resize = function(forced) {
 		this.border.canvas.width = this.loc.map.w + 2 * ZOOM_SCALE;
 		this.border.canvas.height = this.loc.map.h + 2 * ZOOM_SCALE;
 		this.renderBorder();
-		this.loc.scores = new Location(0, 50, news.width, 64);
-		this.scores.canvas.width = this.loc.scores.w;
-		this.scores.canvas.height = this.loc.scores.h;
-		this.renderScores();
+		this.scores.canvas.width = this.loc.graph.w;
+		this.scores.canvas.height = this.loc.graph.h;
+		this.renderCounts();
 		this.map.canvas.width = this.loc.map.w;
 		this.map.canvas.height = this.loc.map.h;
 		this.renderMap();
@@ -660,25 +753,7 @@ Visualizer.prototype.resize = function(forced) {
 		bg.x = this.loc.vis.x + this.loc.vis.w;
 		bg.y = this.loc.vis.y + 8;
 		// redraw everything
-		this.main.ctx.fillStyle = '#fff';
-		this.main.ctx.fillRect(0, 0, this.main.canvas.width, this.main.canvas.height);
 		this.btnMgr.draw();
-		// draw player names and captions
-		this.main.ctx.textAlign = 'left';
-		this.main.ctx.textBaseline = 'top';
-		this.main.ctx.font = 'bold 20px Arial';
-		var x = 0;
-		for (var i = 0; i < this.replay.players.length; i++) {
-			var color = this.replay.players[i]['color'];
-			this.main.ctx.fillStyle = 'rgb(' + color[0] + ', ' + color[1] + ', ' + color[2] + ')';
-			this.main.ctx.fillText(this.replay.players[i].name, x, 2);
-			x += this.main.ctx.measureText(this.replay.players[i].name).width;
-			if (i != this.replay.players.length - 1) {
-				this.main.ctx.fillStyle = '#888';
-				this.main.ctx.fillText(' vs ', x, 2);
-				x += this.main.ctx.measureText(' vs ').width;
-			}
-		}
 		this.director.draw();
 	}
 };
@@ -759,36 +834,43 @@ Visualizer.prototype.renderBorder = function() {
 /**
  * @private
  */
-Visualizer.prototype.renderScores = function() {
+Visualizer.prototype.renderCounts = function() {
 	var ctx = this.scores.ctx;
 	var w = this.scores.canvas.width - 1;
 	var h = this.scores.canvas.height - 1;
 	ctx.fillStyle = '#FFF';
 	ctx.fillRect(0, 0, w + 1, h + 1);
 	// find lowest and highest value
-	var min = +Infinity;
+	var min = 0;
 	var max = -Infinity;
 	for (var i = 0; i < this.replay.turns.length; i++) {
 		var turn = this.replay.turns[i];
 		for (var k = 0; k < turn.scores.length; k++) {
-			if (min > turn.scores[k]) {
-				min = turn.scores[k];
-			}
-			if (max < turn.scores[k]) {
-				max = turn.scores[k];
+			if (max < turn.counts[k]) {
+				max = turn.counts[k];
 			}
 		}
 	}
 	// draw lines
 	var scaleX = w / (this.replay.turns.length - 1);
+	ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+	ctx.beginPath();
+	for (i = 0; i <= this.replay.turns.length; i++) {
+		var t = i + 1;
+		ctx.moveTo(0.5 + scaleX * i, h - (t % 100 ? t % 10 ? 3 : 7 : 17));
+		ctx.lineTo(0.5 + scaleX * i, h + 1);
+	}
+	ctx.moveTo(0.5 + 0, h + 0.5);
+	ctx.lineTo(0.5 + scaleX * this.replay.turns.length, h + 0.5);
+	ctx.stroke();
 	var scaleY = h / (max - min);
-	for (i = 0; i < this.replay.players.length; i++) {
-		var color = this.replay.players[i]['color'];
+	for (i = this.replay.players - 1; i >= 0; i--) {
+		var color = this.replay.meta['playercolors'][i];
 		ctx.strokeStyle = 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
 		ctx.beginPath();
-		ctx.moveTo(0.5, 0.5 + scaleY * (max - this.replay.turns[0].scores[i]));
+		ctx.moveTo(0.5, 0.5 + scaleY * (max - this.replay.turns[0].counts[i]));
 		for (k = 1; k < this.replay.turns.length; k++) {
-			ctx.lineTo(0.5 + scaleX * k, 0.5 + scaleY * (max - this.replay.turns[k].scores[i]));
+			ctx.lineTo(0.5 + scaleX * k, 0.5 + scaleY * (max - this.replay.turns[k].counts[i]));
 		}
 		ctx.stroke();
 	}
@@ -803,7 +885,7 @@ Visualizer.prototype.renderFog = function(turn) {
 			this.createCanvas(this.fog);
 			this.fog.canvas.width = 2;
 			this.fog.canvas.height = 2;
-			var color = this.replay.players[this.fog.player]['color'];
+			var color = this.replay.meta['playercolors'][this.fog.player];
 			this.fog.ctx.fillStyle = 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
 			this.fog.ctx.fillRect(0, 0, 1, 1);
 			this.fog.ctx.fillRect(1, 1, 1, 1);
@@ -841,11 +923,11 @@ Visualizer.prototype.showFog = function(fog) {
 /**
  * @private
  */
-Visualizer.prototype.drawColorBar = function(x, y, w, h, values) {
+Visualizer.prototype.drawColorBar = function(loc, values) {
 	var sum = 0;
 	this.main.ctx.save();
 	this.main.ctx.beginPath();
-	this.main.ctx.rect(x, y, w, h);
+	this.main.ctx.rect(loc.x, loc.y, loc.w, loc.h);
 	this.main.ctx.clip();
 	for (var i = 0; i < values.length; i++) {
 		sum += values[i];
@@ -858,24 +940,28 @@ Visualizer.prototype.drawColorBar = function(x, y, w, h, values) {
 		}
 		sum = values.length;
 	}
-	var scale = w / sum;
-	var offsetX = x;
+	var scale = loc.w / sum;
+	var offsetX = loc.x;
 	for (i = 0; i < useValues.length; i++) {
 		var amount = scale * useValues[i];
-		var color = this.replay.players[i]['color'];
-		this.main.ctx.fillStyle = 'rgb(' + color[0] + ', ' + color[1] + ', ' + color[2] + ')';
-		this.main.ctx.fillRect(offsetX, y, w - offsetX + x, h);
+		var color = this.replay.meta['playercolors'][i];
+		this.main.ctx.fillStyle =
+				'rgb(' + color[0] + ', ' + color[1] + ', ' + color[2] + ')';
+		this.main.ctx.fillRect(offsetX, loc.y, loc.w - offsetX + loc.x, loc.h);
 		offsetX += amount;
 	}
 	this.main.ctx.textAlign = 'left';
 	this.main.ctx.textBaseline = 'middle';
 	this.main.ctx.font = 'bold 16px Monospace';
 	this.main.ctx.fillStyle = 'rgba(0,0,0,0.5)';
-	var offsetY = y + 0.5 * h;
-	offsetX = x + 2;
+	var offsetY = loc.y + 0.5 * loc.h;
+	offsetX = loc.x + 2;
 	for (i = 0; i < useValues.length; i++) {
-		if (useValues[i] != 0) {
-			this.main.ctx.fillText(Math.round(values[i]), offsetX, offsetY);
+		// work around a bug in Chrome's LiveConnect implementation
+		var text = '' + Math.round(values[i]);
+		var textWidth = this.main.ctx.measureText(text).width;
+		if (useValues[i] != 0 && scale * useValues[i] >= textWidth) {
+			this.main.ctx.fillText(text, offsetX, offsetY);
 		}
 		offsetX += scale * useValues[i];
 	}
@@ -904,74 +990,92 @@ Visualizer.prototype.interpolate = function(array1, array2, delta) {
  */
 Visualizer.prototype.draw = function(time, tick) {
 	var x, y, w, d;
-	var drawOrder = [];
 	var turn = (time | 0);
 	// draw the map background
-	this.main.ctx.fillStyle = '#ff3';
 	this.main.ctx.drawImage(this.map.canvas, this.loc.map.x, this.loc.map.y);
+	// draw scores
 	w = this.main.canvas.width;
 	if (tick !== undefined) {
-		//document.getElementById('lblTurn').innerHTML = ((turn > this.replay.turns.length - 2) ? 'end result' : turn + ' / ' + (this.replay.turns.length - 2));
 		if (this.fog !== undefined) this.renderFog(turn);
+		//var array1 = this.replay.turns[turn];
+		//var array2 = (time === turn) ? array1 : this.replay.turns[turn + 1];
+		//var scores = this.interpolate(array1.scores, array2.scores, time - turn);
+		//this.drawColorBar(95,  4, w - 4 - 95, 22, scores);
+		//var counts = this.interpolate(array1.counts, array2.counts, time - turn);
+		//this.drawColorBar(95, 38, w - 4 - 95, 22, counts);
+		this.drawColorBar(this.loc.scorebar, this.replay.turns[turn].scores);
+		this.drawColorBar(this.loc.countbar, this.replay.turns[turn].counts);
 	}
-	var array1 = this.replay.turns[turn];
-	var array2 = (time === turn) ? array1 : this.replay.turns[turn + 1];
-	var counts = this.interpolate(array1.counts, array2.counts, time - turn);
-	this.drawColorBar(0, 30, w, 20, counts);
-	this.main.ctx.drawImage(this.scores.canvas, this.loc.scores.x, this.loc.scores.y);
+	this.main.ctx.drawImage(this.scores.canvas, this.loc.graph.x, this.loc.graph.y);
+	this.main.ctx.lineWidth = 1;
 	this.main.ctx.beginPath();
-	this.main.ctx.moveTo(this.loc.scores.x + 0.5 + (this.loc.scores.w - 1) * time / (this.replay.turns.length - 1), this.loc.scores.y + 0.5);
-	this.main.ctx.lineTo(this.loc.scores.x + 0.5 + (this.loc.scores.w - 1) * time / (this.replay.turns.length - 1), this.loc.scores.y + this.loc.scores.h - 0.5);
+	this.main.ctx.moveTo(this.loc.graph.x + 0.5 + (this.loc.graph.w - 1) * time / (this.replay.turns.length - 1), this.loc.graph.y + 0.5);
+	this.main.ctx.lineTo(this.loc.graph.x + 0.5 + (this.loc.graph.w - 1) * time / (this.replay.turns.length - 1), this.loc.graph.y + this.loc.graph.h - 0.5);
 	this.main.ctx.stroke();
+	var isStop = (turn === this.replay.turns.length - 1);
+	this.main.ctx.fillStyle = '#888';
+	this.main.ctx.textBaseline = 'middle';
+	this.main.ctx.fillText('# of ants | ' + (isStop ? 'end' : 'turn '
+			+ (turn + 1) + '/' + (this.replay.turns.length - 1)),
+			this.loc.graph.x, this.loc.graph.y + 11);
+	// ants...
+	var drawStates = {};
 	for (var i = 0; i < this.replay.turns[turn].ants.length; i++) {
 		var antObj = this.replay.turns[turn].ants[i].interpolate(time, Quality.LOW);
 		this.correctCoords(antObj, this.replay.cols, this.replay.rows);
-		drawOrder.push(antObj);
+		var hash = Hex[antObj['r']] + Hex[antObj['g']] + Hex[antObj['b']];
+		if (!drawStates[hash]) drawStates[hash] = [];
+		drawStates[hash].push(antObj);
 	}
-	for (var n = 0; n < drawOrder.length; n++) {
-		antObj = drawOrder[n];
-		if (this.config['zoom']) {
-			this.main.ctx.save();
-			this.main.ctx.globalAlpha = antObj.alpha;
-			x = ZOOM_SCALE * (antObj.x + 0.5);
-			y = ZOOM_SCALE * (antObj.y + 0.5);
-			this.main.ctx.translate(x, y);
-			this.main.ctx.rotate(antObj.angle + Math.sin(20 * time) * antObj.jitter);
-			this.main.ctx.drawImage(this.imgMgr.ants[antObj.type], -10, -10);
-			this.main.ctx.restore();
-			x += 3 * Math.tan(2 * (Math.random() - 0.5));
-			y += 3 * Math.tan(2 * (Math.random() - 0.5));
-			if (antObj.alpha == 1) {
-				var sin = -Math.sin(antObj.angle);
-				var cos = +Math.cos(antObj.angle);
-				this.ctxMap.moveTo(x - sin, y - cos);
-				this.ctxMap.lineTo(x + sin, y + cos);
+	// sorting by render state gives slight fps improvements
+	for (var key in drawStates) {
+		this.main.ctx.fillStyle = '#' + key;
+		var drawList = drawStates[key];
+		for (var n = 0; n < drawList.length; n++) {
+			antObj = drawList[n];
+			if (this.config['zoom']) {
+				this.main.ctx.save();
+				this.main.ctx.globalAlpha = antObj.alpha;
+				x = ZOOM_SCALE * (antObj.x + 0.5);
+				y = ZOOM_SCALE * (antObj.y + 0.5);
+				this.main.ctx.translate(x, y);
+				this.main.ctx.rotate(antObj.angle + Math.sin(20 * time) * antObj.jitter);
+				this.main.ctx.drawImage(this.imgMgr.ants[antObj.type], -10, -10);
+				this.main.ctx.restore();
+				x += 3 * Math.tan(2 * (Math.random() - 0.5));
+				y += 3 * Math.tan(2 * (Math.random() - 0.5));
+				if (antObj.alpha == 1) {
+					var sin = -Math.sin(antObj.angle);
+					var cos = +Math.cos(antObj.angle);
+					this.ctxMap.moveTo(x - sin, y - cos);
+					this.ctxMap.lineTo(x + sin, y + cos);
+				}
+			} else {
+				x = Math.round(this.scale * antObj['x']) + this.loc.map.x;
+				y = Math.round(this.scale * antObj['y']) + this.loc.map.y;
+				w = this.scale;
+				if (antObj['size'] !== 1) {
+					d = 0.5 * (1.0 - antObj['size']) * this.scale;
+					x += d;
+					y += d;
+					w *= antObj['size'];
+				}
+				this.main.ctx.fillRect(x, y, w, w);
 			}
-		} else {
-			x = Math.round(this.scale * antObj['x']) + this.loc.map.x;
-			y = Math.round(this.scale * antObj['y']) + this.loc.map.y;
-			w = this.scale;
-			if (antObj['size'] !== 1) {
-				d = 0.5 * (1.0 - antObj['size']) * this.scale;
-				x += d;
-				y += d;
-				w *= antObj['size'];
-			}
-			this.main.ctx.fillStyle = 'rgb(' + antObj['r'] + ', ' + antObj['g'] + ', ' + antObj['b'] + ')';
-			this.main.ctx.fillRect(x, y, w, w);
 		}
 	}
 	// draw border over ants, that moved out of the map
 	this.main.ctx.drawImage(this.border.canvas, this.loc.map.x - ZOOM_SCALE, this.loc.map.y - ZOOM_SCALE);
 	if (this.options['java']) {
+		// stop Closure Compiler from renaming this Java method
 		this.main.element['repaint']();
 	}
 };
 Visualizer.prototype.mouseMoved = function(mx, my) {
 	this.mouseX = mx;
 	this.mouseY = my;
-	if (this.mouseDown && this.loc.scores.contains(this.mouseX, this.mouseY)) {
-		mx = (this.mouseX - this.loc.scores.x) / (this.loc.scores.w - 1);
+	if (this.mouseDown && this.loc.graph.contains(this.mouseX, this.mouseY)) {
+		mx = (this.mouseX - this.loc.graph.x) / (this.loc.graph.w - 1);
 		mx = Math.round(mx * (this.replay.turns.length - 1));
 		this.director.gotoTick(mx);
 	} else {
@@ -980,8 +1084,8 @@ Visualizer.prototype.mouseMoved = function(mx, my) {
 };
 Visualizer.prototype.mousePressed = function() {
 	this.mouseDown = true;
-	if (this.loc.scores.contains(this.mouseX, this.mouseY)) {
-		var mx = (this.mouseX - this.loc.scores.x) / (this.loc.scores.w - 1);
+	if (this.loc.graph.contains(this.mouseX, this.mouseY)) {
+		var mx = (this.mouseX - this.loc.graph.x) / (this.loc.graph.w - 1);
 		mx = Math.round(mx * (this.replay.turns.length - 1));
 		this.director.gotoTick(mx);
 	} else {
