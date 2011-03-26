@@ -40,7 +40,7 @@ namespace Bot
 	    private int _viewradius2 = 0;
 	    private int _attackradius2 = 0;
 	    private int _spawnradius2 = 0;
-	    private Tile[,] map;
+        private Map map = new Map();
 	
 	    public int turn {get {return _turn;} }
         public int turns { get { return _turns; } }
@@ -57,9 +57,69 @@ namespace Bot
             Tile.InitSymbols();
         }
 
-	    public bool setup(List<String> data) {
+        public void Run()
+        {
+            string lineInput = Console.ReadLine();
+            while(lineInput.Length > 0)
+            {
+                string[] tokens = lineInput.Split(new char[]{' '});
+                string key = tokens[0];
+                //string value = tokens[1];
+
+                #region Load Values
+                if (key == "turn")
+                {
+                    _turn = Int32.Parse(tokens[1]);
+                    map.NewTurn();
+                }
+                else if (key == "loadtime")
+                    _loadtime = Int32.Parse(tokens[1]);
+                else if (key == "turntime")
+                    _turntime = Int32.Parse(tokens[1]);
+                else if (key == "rows")
+                    _rows = Int32.Parse(tokens[1]);
+                else if (key == "cols")
+                    _cols = Int32.Parse(tokens[1]);
+                else if (key == "turns")
+                    _turns = Int32.Parse(tokens[1]);
+                else if (key == "viewradius2")
+                    _viewradius2 = Int32.Parse(tokens[1]);
+                else if (key == "attackradius2")
+                    _attackradius2 = Int32.Parse(tokens[1]);
+                else if (key == "spawnradius2")
+                    _spawnradius2 = Int32.Parse(tokens[1]);
+                else if (key == "ready")
+                {
+                    setup();
+                    finishTurn();
+                }
+                #endregion
+
+                #region Per Turn
+                else if (key == "go")
+                {
+                    DoLogic();
+                    finishTurn();
+                }
+                else if (key == "f" || key == "w")//food or water
+                    map.UpdateTile(key, tokens[1], tokens[2]);
+                else if (key == "a" || key == "d")//ant or dead ant
+                    map.UpdateTile(key, tokens[1], tokens[2], tokens[3]);
+                #endregion
+
+                lineInput = Console.ReadLine();
+            }
+            //string lineIn = Console.ReadLine();
+            Console.WriteLine(lineInput);
+        }
+
+	    public virtual bool setup() {
             return true;
 	    }
+
+        public virtual void DoLogic()
+        {
+        }
 	
 	    private bool update(List<String> data) {
 		    // clear ants and food
@@ -71,100 +131,13 @@ namespace Bot
 	    }
 
 	    public void issueOrder(Tile ant, Aim direction) {
-		    Console.WriteLine("o " + ant.col() + " " + ant.row() + " " + direction.symbol);
+		    Console.WriteLine("o " + ant.col + " " + ant.row + " " + direction.symbol);
 	    }
 	
 	    public void finishTurn() {
 		    Console.WriteLine("go");
 		    this._turn++;
 	    }
-	
-	    /*public Set<Tile> myAnts() {
-		    Set<Tile> myAnts = new HashSet<Tile>();
-		    for (Entry<Tile, Ilk> ant : this.antList.entrySet()) {
-			    if (ant.getValue() == Ilk.MY_ANT) {
-				    myAnts.add(ant.getKey());
-			    }
-		    }
-		    return myAnts;
-	    }
-	
-	    public Set<Tile> enemyAnts() {
-		    Set<Tile> enemyAnts = new HashSet<Tile>();
-		    for (Entry<Tile, Ilk> ant : this.antList.entrySet()) {
-			    if (ant.getValue().isEnemy()) {
-				    enemyAnts.add(ant.getKey());
-			    }
-		    }
-		    return enemyAnts;
-	    }
-	
-	    public Set<Tile> food() {
-	    }
-	
-	    public int distance (Tile t1, Tile t2) {
-		    int dRow = Math.Abs(t1.row() - t2.row());
-		    int dCol = Math.Abs(t1.col() - t2.col());
 
-		    dRow = Math.Min(dRow, this._rows - dRow);
-		    dCol = Math.Min(dCol, this._cols - dCol);
-		
-		    return dRow * dRow + dCol * dCol;
-	    }
-	
-	    public List<Aim> directions (Tile t1, Tile t2) {
-		    List<Aim> directions = new List<Aim>();
-		
-		    if (t1.row() < t2.row()) {
-			    if (t2.row() - t1.row() >= this._rows / 2) {
-				    directions.Add(Aim.NORTH);
-			    } else {
-				    directions.Add(Aim.SOUTH);
-			    }
-		    } else if (t1.row() > t2.row()) {
-			    if (t1.row() - t2.row() >= this._rows / 2) {
-				    directions.Add(Aim.SOUTH);
-			    } else {
-				    directions.Add(Aim.NORTH);
-			    }
-		    }
-
-		    if (t1.col() < t2.col()) {
-			    if (t2.col() - t1.col() >= this._cols / 2) {
-				    directions.Add(Aim.WEST);
-			    } else {
-				    directions.Add(Aim.EAST);
-			    }
-		    } else if (t1.col() > t2.col()) {
-			    if (t1.col() - t2.col() >= this._cols / 2) {
-				    directions.Add(Aim.EAST);
-			    } else {
-				    directions.Add(Aim.WEST);
-			    }
-		    }
-		
-		    return directions;
-	    }
-	
-	    public Ilk ilk(Tile location, Aim direction) {
-		    Tile new_location = this.tile(location, direction);
-		    return this.map[new_location.row()][new_location.col()];
-	    }
-	
-	    public Ilk ilk(Tile location) {
-		    return this.map[location.row()][location.col()];
-	    }
-	
-	    public Tile tile(Tile location, Aim direction) {
-		    int nRow = (location.row() + direction.dRow) % this._rows;
-		    if (nRow < 0) {
-			    nRow += this._rows;
-		    }
-		    int nCol = (location.col() + direction.dCol) % this._cols;
-		    if (nCol < 0) {
-			    nCol += this._cols;
-		    }
-		    return new Tile(nRow, nCol);
-	    }*/
     }
 }
