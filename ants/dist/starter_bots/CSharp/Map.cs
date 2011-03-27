@@ -82,5 +82,14 @@ namespace Bot
                 map.Add(pos, value);
             }
         }
+
+        public List<Tile> GetTiles()
+        {
+            List<Tile> retn = new List<Tile>();
+            foreach (Coord coord in map.Keys)
+                retn.Add(map[coord]);
+
+            return retn;
+        }
     }
 }

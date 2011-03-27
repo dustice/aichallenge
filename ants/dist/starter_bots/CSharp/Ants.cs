@@ -52,6 +52,21 @@ namespace Bot
         public int attackradious2 { get { return _attackradius2; } }
         public int spawnradious2 { get { return _spawnradius2; } }
 
+        public List<Tile> MyAnts
+        {
+            get
+            {
+                List<Tile> retn = new List<Tile>();
+                foreach (Tile tile in map.GetTiles())
+                {
+                    if (tile.type == Tile.Type.ANT && tile.owner == Tile.Owner.PLAYER1)
+                        retn.Add(tile);
+                }
+
+                return retn;
+            }
+        }
+
         public Ants()
         {
             Tile.InitSymbols();

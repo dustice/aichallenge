@@ -49,7 +49,7 @@ namespace Bot
 
         public static char[] symbols = new char[31];
 
-	    public Tile(Type type, int row, int col, Owner owner)
+	    public Tile(Type type, int col, int row, Owner owner)
         {
             _type = type;
 		    _row = row;
@@ -78,6 +78,7 @@ namespace Bot
         public int col { get { return _col; } }
         public Type type { get { return _type; } }
         public int hashCode { get { return _row * 65536 + _col; } }
+        public Owner owner { get { return _owner; } }
 	
 	    public bool equals(Object o)
         {

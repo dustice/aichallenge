@@ -44,7 +44,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Ants.cs" />
-    <Compile Include="AntBotInterface.cs" />
     <Compile Include="Map.cs" />
     <Compile Include="SimpleBot.cs" />
     <Compile Include="Tile.cs" />
