@@ -17,6 +17,7 @@
 
 import sys
 import os
+import random
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from ants import Ants, MAP_RENDER, PLAYER_CHARS
 from math import sqrt
@@ -50,7 +51,8 @@ def create_map_output(map_grid, buffer):
 
 def simulate_battle(map_segment, attackradius2, attack_method):
     # add buffer so that battles aren't affected by wrapping
-    buffer = int(sqrt(attackradius2)) + 1
+    #buffer = int(sqrt(attackradius2)) + 1
+    buffer = 0
 
     map_data = create_map_data(map_segment, buffer)
 
@@ -73,6 +75,7 @@ def simulate_battle(map_segment, attackradius2, attack_method):
 def read_map_segment():
     map_segment = []
 
+    """
     # read from stdin until we get an empty line
     while True:
         line = sys.stdin.readline().rstrip()
@@ -80,6 +83,9 @@ def read_map_segment():
             map_segment.extend(line.split('|'))
         else:
             break
+    """
+    line = "...............||||||||||||||" # 15x15 empty map
+    map_segment.extend(line.split('|'))
 
     # normalise
     width = max(map(len,map_segment))
@@ -97,12 +103,43 @@ def reset_player_names(before, after):
 
 if __name__ == "__main__":
     attackradius2 = 6
-    if len(sys.argv) > 1:
-        attackradius2 = int(sys.argv[1])
+    #if len(sys.argv) > 1:
+    #    attackradius2 = int(sys.argv[1])
 
     map_segment = read_map_segment()
 
+    width = len(map_segment[0])
+    height = len(map_segment)
+    print "width:%d height:%d" % (width, height)
+
+    # Generate random starting points
+    NUM_ALLY = 2
+    NUM_ENEMY = 2
+
+    for i in range(0, NUM_ALLY):
+        while(True):
+            x = random.randint(0, width-1)
+            y = random.randint(0, height-1)
+
+            if map_segment[y][x] == '.':
+                line = list(map_segment[y])
+                line[x] = "a"
+                map_segment[y] = "".join(line)
+                break;
+
+    for i in range(0, NUM_ENEMY):
+        while(True):
+            x = random.randint(0, width-1)
+            y = random.randint(0, height-1)
+
+            if map_segment[y][x] == '.':
+                line = list(map_segment[y])
+                line[x] = "b"
+                map_segment[y] = "".join(line)
+                break;
+
     print '\n'.join(map_segment)
+    sys.exit()
 
     for method in ['damage']:
         result = simulate_battle(map_segment, attackradius2, method)
