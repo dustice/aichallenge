@@ -143,6 +143,7 @@ if __name__ == "__main__":
 
     for method in ['damage']:
         result = simulate_battle(map_segment, attackradius2, method)
+        print '\n'.join(result)
         result = reset_player_names(map_segment, result)
 
         print
