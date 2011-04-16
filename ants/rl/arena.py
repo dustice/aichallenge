@@ -41,10 +41,10 @@ def create_map_data(map_segment, buffer):
 
 def create_map_output(map_grid, buffer):
     # remove vertical buffer
-    map_grid = map_grid[buffer:-buffer]
+    #map_grid = map_grid[buffer:-buffer]
 
     # remove horizontal buffer
-    map_grid = [row[buffer:-buffer] for row in map_grid]
+    #map_grid = [row[buffer:-buffer] for row in map_grid]
 
     return [''.join(MAP_RENDER[c] for c in row) for row in map_grid]
 
