@@ -15,6 +15,7 @@ Button.prototype.draw = function() {
 	ctx.save();
 	ctx.fillStyle = '#fff';
 	ctx.fillRect(loc.x, loc.y, loc.w, loc.h);
+	if (!this.enabled) ctx.globalAlpha = 0.5;
 	ctx.beginPath();
 	ctx.moveTo(loc.x, loc.y);
 	ctx.lineTo(loc.x + loc.w, loc.y);
@@ -287,7 +288,6 @@ ButtonManager.prototype.mouseMove = function(mx, my) {
 			}
 		}
 		this.hover = result;
-		this.repaintCheck();
 	}
 	return result;
 };
@@ -298,22 +298,12 @@ ButtonManager.prototype.mouseUp = function() {
 			this.nailed.onclick();
 		}
 		this.nailed = null;
-		this.repaintCheck();
 	}
 };
 ButtonManager.prototype.mouseDown = function() {
 	if (this.hover) {
 		this.hover.mouseDown();
 		this.nailed = this.hover;
-		this.repaintCheck();
-	}
-};
-/**
- * @private
- */
-ButtonManager.prototype.repaintCheck = function() {
-	if (this.vis.options['java']) {
-		this.vis.main.element['repaint']();
 	}
 };
 
