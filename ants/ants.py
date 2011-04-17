@@ -156,6 +156,7 @@ class Ants(Game):
 
         self.land_area = self.width*self.height - water_area
         self.num_players = len(players)
+        self.player_chars = players
 
     def neighbourhood_offsets(self, max_dist):
         """ Return a list of squares within a given distance of loc
@@ -230,7 +231,7 @@ class Ants(Game):
             self.update_vision_ant(ant, self.vision_offsets_cache[order][0], -1)
 
     def update_vision_ant(self, ant, offsets, delta):
-        """ Update the vision data for a single ant 
+        """ Update the vision data for a single ant
 
             Increments all the given offsets by delta for the vision
               data for ant.owner
@@ -503,7 +504,7 @@ class Ants(Game):
         for ant in colliding_ants:
             # find living nearby enemies
             enemies = self.nearby_ants(ant.loc, self.attackradius, ant.owner)
-            # in addition to the living nearby enemies, dead nearby enemies 
+            # in addition to the living nearby enemies, dead nearby enemies
             #   should get points too!
             for other_ant in colliding_ants:
                 # only interested in enemies within range
@@ -621,7 +622,7 @@ class Ants(Game):
             Each ant deals 1/#nearby_enemy damage to each nearby enemy.
               (nearby enemies are those within the attackradius)
             Any ant with at least 1 damage dies.
-            Damage does not accumulate over turns 
+            Damage does not accumulate over turns
               (ie, ants heal at the end of the battle).
         """
 
@@ -646,7 +647,7 @@ class Ants(Game):
                     self.score[enemy.owner] += score
 
     def do_attack_support(self):
-        """ Kill ants which have more enemies nearby than friendly ants 
+        """ Kill ants which have more enemies nearby than friendly ants
 
             An ant dies if the number of enemy ants within the attackradius
             is greater than the number of friendly ants within the attackradius.
@@ -1026,7 +1027,7 @@ class Ants(Game):
                 # update score for those were alive at the START of the turn
                 self.score_history[i].append(s)
             else:
-                # otherwise undo any changes to their score made 
+                # otherwise undo any changes to their score made
                 #   during this turn
                 self.score[i] = self.score_history[i][-1]
 
